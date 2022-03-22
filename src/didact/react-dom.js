@@ -6,22 +6,88 @@ function isTextNode(type) {
 
 const isNodeChildren = (key) => key !== "children";
 
-function render(element, container) {
-  const dom = isTextNode(element.type)
+function createDom(fiber) {
+  const dom = isTextNode(fiber.type)
     ? document.createTextNode("")
-    : document.createElement(element.type);
+    : document.createElement(fiber.type);
 
-  Object.keys(element.props)
+  Object.keys(fiber.props)
     .filter(isNodeChildren)
     .map((key) => {
-      dom[key] = element.props[key];
+      dom[key] = fiber.props[key];
     });
 
-  element.props.children.map((item) => {
-    render(item, dom);
-  });
+  return dom;
+  // element.props.children.map((item) => {
+  //   render(item, dom);
+  // });
 
-  container.appendChild(dom);
+  // container.appendChild(dom);
+}
+
+function render(element, container) {
+  nextUnitWork = {
+    dom: container,
+    props: {
+      children: [element],
+    },
+  };
+}
+
+let nextUnitWork = null;
+
+function workLoop(deadLine) {
+  let shouldYield = false;
+  while (nextUnitWork && !shouldYield) {
+    nextUnitWork = performUnitOfWork(nextUnitWork);
+    shouldYield = deadLine.timeRemaining() < 1;
+  }
+  requestIdleCallback(workLoop);
+}
+
+requestIdleCallback(workLoop);
+
+function performUnitOfWork(fiber) {
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber);
+  }
+
+  if (fiber.parent) {
+    fiber.parent.dom.appendChild(fiber.dom);
+  }
+
+  const elements = fiber.props.children;
+  let index = 0;
+  let preSibling = null;
+  while (index < elements.length) {
+    const element = elements[index];
+    const newFiber = {
+      type: element.type,
+      props: element.props,
+      parent: fiber,
+      dom: null,
+    };
+
+    if (index === 0) {
+      fiber.child = newFiber;
+    } else {
+      preSibling.sibling = newFiber;
+    }
+    preSibling = newFiber;
+    index++;
+  }
+
+  if (fiber.child) {
+    return fiber.child;
+  }
+
+  let nextFiber = fiber;
+  while (nextFiber) {
+    if (nextFiber.sibling) {
+      return nextFiber.sibling;
+    }
+    nextFiber = nextFiber.parent;
+  }
 }
 
 const ReactDOM = {
