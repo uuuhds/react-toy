@@ -5,7 +5,9 @@ const element = React.createElement(
   "div",
   { id: "foo" },
   React.createElement("a", null, "bar"),
-  React.createElement("b")
+  React.createElement("a", null, "bar"),
+  React.createElement("a", null, "bar"),
+  React.createElement("b"),
 );
 
 ReactDOM.render(element, document.getElementById("root"));
