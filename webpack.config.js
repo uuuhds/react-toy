@@ -1,12 +1,29 @@
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const path = require("path");
 
+const entryKeys = ["v1", "v2", "v3", "v4"];
+
+const entry = entryKeys.reduce((pre, cur) => {
+  return {
+    ...pre,
+    [cur]: `./src/${cur}/index.js`,
+  };
+}, {});
+
+const htmlPlugins = entryKeys.map((key) => {
+  return new HtmlWebpackPlugin({
+    template: path.join(__dirname, "./public/index.html"),
+    filename: `${key}.html`,
+    chunks: [key],
+  });
+});
+
 module.exports = {
   mode: "development",
-  entry: "./src/index.js",
+  entry,
   output: {
     path: path.join(__dirname, "/dist"),
-    filename: "index_bundle.js",
+    filename: "[id].js",
   },
   devServer: {
     static: {
@@ -32,9 +49,5 @@ module.exports = {
       },
     ],
   },
-  plugins: [
-    new HtmlWebpackPlugin({
-      template: path.join(__dirname, "./public/index.html"),
-    }),
-  ],
+  plugins: [...htmlPlugins],
 };

@@ -76,10 +76,46 @@ function performUnitOfWork(fiber) {
   }
 }
 
+let wipFiber = null;
+let hookIndex = null;
+
 function updateFunctionComponent(fiber) {
   // function App() {}  App(props) => JSX.Element
+  wipFiber = fiber;
+  hookIndex = 0;
+  wipFiber.hooks = [];
   const children = [fiber.type(fiber.props)];
   reconcileChildren(fiber, children);
+}
+
+export function useState(initial) {
+  const oldHook =
+    wipFiber.alternate &&
+    wipFiber.alternate.hooks &&
+    wipFiber.alternate.hooks[hookIndex];
+  const hook = {
+    state: oldHook ? oldHook.state : initial,
+    queue: [],
+  };
+
+  const actions = oldHook ? oldHook.queue : [];
+  actions.forEach((action) => {
+    hook.state = action(hook.state);
+  });
+
+  const setState = (action) => {
+    hook.queue.push(action);
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot,
+    };
+    nextUnitOfWork = wipRoot;
+    deletions = [];
+  };
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+  return [hook.state, setState];
 }
 
 function updateHostComponent(fiber) {
@@ -135,7 +171,6 @@ function reconcileChildren(wipFiber, elements) {
       preSibling.sibling = newFiber;
     }
     preSibling = newFiber;
-
     index++;
   }
 
@@ -220,8 +255,31 @@ function updateDom(dom, prevProps, nextProps) {
     });
 }
 
-const ReactDOM = {
+function createElement(type, config, ...children) {
+  return {
+    type,
+    props: {
+      ...config,
+      children: children.map((item) => {
+        return typeof item === "object" ? item : createTextNode(item);
+      }),
+    },
+  };
+}
+
+function createTextNode(text) {
+  return {
+    type: TEXT_ELEMENT,
+    props: {
+      nodeValue: text,
+      children: [],
+    },
+  };
+}
+
+const React = {
+  createElement,
   render,
 };
 
-export default ReactDOM;
+export default React;
