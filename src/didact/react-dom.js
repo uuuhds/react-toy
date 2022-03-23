@@ -4,18 +4,21 @@ function isTextNode(type) {
   return type === TEXT_ELEMENT;
 }
 
-const isNodeChildren = (key) => key !== "children";
+// 下一个比对的fiber单元
+let nextUnitOfWork = null;
+// 正在比对的root节点
+let wipRoot = null;
+// 当前浏览器使用的root节点
+let currentRoot = null;
+// 待删除的fiber节点
+let deletions = null;
 
 function createDom(fiber) {
   const dom = isTextNode(fiber.type)
     ? document.createTextNode("")
     : document.createElement(fiber.type);
 
-  Object.keys(fiber.props)
-    .filter(isNodeChildren)
-    .map((key) => {
-      dom[key] = fiber.props[key];
-    });
+  updateDom(dom, {}, fiber.props);
 
   return dom;
   // element.props.children.map((item) => {
@@ -31,12 +34,11 @@ function render(element, container) {
     props: {
       children: [element],
     },
+    alternate: currentRoot,
   };
+  deletions = [];
   nextUnitOfWork = wipRoot;
 }
-
-let nextUnitOfWork = null;
-let wipRoot = null;
 
 function workLoop(deadLine) {
   let shouldYield = false;
@@ -45,6 +47,7 @@ function workLoop(deadLine) {
     shouldYield = deadLine.timeRemaining() < 1;
   }
   if (!nextUnitOfWork && wipRoot) {
+    console.log("wipRoot", wipRoot);
     commitRoot();
   }
   requestIdleCallback(workLoop);
@@ -62,25 +65,8 @@ function performUnitOfWork(fiber) {
   // }
 
   const elements = fiber.props.children;
-  let index = 0;
-  let preSibling = null;
-  while (index < elements.length) {
-    const element = elements[index];
-    const newFiber = {
-      type: element.type,
-      props: element.props,
-      parent: fiber,
-      dom: null,
-    };
 
-    if (index === 0) {
-      fiber.child = newFiber;
-    } else {
-      preSibling.sibling = newFiber;
-    }
-    preSibling = newFiber;
-    index++;
-  }
+  reconcileChildren(fiber, elements);
 
   if (fiber.child) {
     return fiber.child;
@@ -95,8 +81,68 @@ function performUnitOfWork(fiber) {
   }
 }
 
+function reconcileChildren(wipFiber, elements) {
+  let index = 0;
+  let preSibling = null;
+  let oldFiber = wipFiber.alternate && wipFiber.alternate.child;
+
+  while (index < elements.length) {
+    const element = elements[index];
+    const newFiber = null;
+    const sameType = oldFiber && element && element.type == oldFiber.type;
+
+    if (sameType) {
+      newFiber = {
+        type: oldFiber.type,
+        props: element.props,
+        dom: oldFiber.dom,
+        parent: wipFiber,
+        alternate: oldFiber,
+        effectTag: "UPDATE",
+      };
+    }
+    // 新增的时候是没有dom对象的
+    if (element && !sameType) {
+      newFiber = {
+        type: element.type,
+        props: element.props,
+        dom: null,
+        parent: wipFiber,
+        alternate: null,
+        effectTag: "PLACEMENT",
+      };
+    }
+    if (oldFiber && !sameType) {
+      oldFiber.effectTag = "DELETION";
+      deletions.push(oldFiber);
+    }
+
+    if (oldFiber) {
+      oldFiber = oldFiber.sibling;
+    }
+
+    if (index === 0) {
+      wipFiber.child = newFiber;
+    } else {
+      preSibling.sibling = newFiber;
+    }
+    preSibling = newFiber;
+
+    index++;
+  }
+
+  while (oldFiber) {
+    oldFiber.effectTag = "DELETION";
+    deletions.push(oldFiber);
+    oldFiber = oldFiber.sibling;
+  }
+}
+
 function commitRoot() {
+  console.log('deletions', deletions)
+  deletions.forEach(commitWork);
   commitWork(wipRoot.child);
+  currentRoot = wipRoot;
   wipRoot = null;
 }
 
@@ -104,10 +150,58 @@ function commitWork(fiber) {
   if (!fiber) {
     return;
   }
+  // let domParentFiber = fiber.parent;
+  // while (!domParentFiber.dom) {
+  //   domParentFiber = domParentFiber.parent;
+  // }
   const domParent = fiber.parent.dom;
-  domParent.appendChild(fiber.dom);
+  if (fiber.effectTag === "PLACEMENT" && fiber.dom != null) {
+    domParent.appendChild(fiber.dom);
+  } else if (fiber.effectTag === "UPDATE" && fiber.dom != null) {
+    updateDom(fiber.dom, fiber.alternate.props, fiber.props);
+  } else if (fiber.effectTag === "DELETION") {
+    domParent.removeChild(fiber.dom);
+  }
   commitWork(fiber.child);
   commitWork(fiber.sibling);
+}
+
+const isProperty = (key) => key !== "children";
+const isEvent = (key) => key.startsWith("on");
+const isNew = (prev, next) => (key) => prev[key] !== next[key];
+const isGone = (prev, next) => (key) => !(key in next);
+
+function updateDom(dom, prevProps, nextProps) {
+  // 删除事件
+  Object.keys(prevProps)
+    .filter(isEvent)
+    .filter((key) => !(key in nextProps) || isNew(prevProps, nextProps)(key))
+    .forEach((name) => {
+      const eventType = name.toLowerCase().substring(2);
+      dom.removeEventListener(eventType, prevProps[name]);
+    });
+  // 删除新节点不存在的属性
+  Object.keys(prevProps)
+    .filter(isProperty)
+    .filter(isGone(prevProps, nextProps))
+    .forEach((name) => {
+      dom[name] = "";
+    });
+  // 更新属性
+  Object.keys(nextProps)
+    .filter(isProperty)
+    .filter(isNew(prevProps, nextProps))
+    .forEach((name) => {
+      dom[name] = nextProps[name];
+    });
+  // 新增事件
+  Object.keys(nextProps)
+    .filter(isEvent)
+    .filter(isNew(prevProps, nextProps))
+    .forEach((name) => {
+      const eventType = name.toLowerCase().substring(2);
+      dom.addEventListener(eventType, nextProps[name]);
+    });
 }
 
 const ReactDOM = {

@@ -1,13 +1,27 @@
 import React from "./didact/react";
 import ReactDOM from "./didact/react-dom";
 
-const element = React.createElement(
-  "div",
-  { id: "foo" },
-  React.createElement("a", null, "bar"),
-  React.createElement("a", null, "bar"),
-  React.createElement("a", null, "bar"),
-  React.createElement("b"),
+ReactDOM.render(
+  <div
+    onClick={() => {
+      console.log(1);
+    }}
+  >
+    <div>foo</div>
+    <div>bar</div>
+  </div>,
+  document.getElementById("root")
 );
 
-ReactDOM.render(element, document.getElementById("root"));
+setTimeout(() => {
+  ReactDOM.render(
+    <div
+      onClick={() => {
+        console.log(2);
+      }}
+    >
+      <div>boo</div>
+    </div>,
+    document.getElementById("root")
+  );
+}, 2000);
