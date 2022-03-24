@@ -1,7 +1,7 @@
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const path = require("path");
 
-const entryKeys = ["v1", "v2", "v3", "v4"];
+const entryKeys = ["v1", "v2", "v3", "v4", "v5", "v6", "final"];
 
 const entry = entryKeys.reduce((pre, cur) => {
   return {

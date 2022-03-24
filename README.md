@@ -39,7 +39,16 @@ http://localhost:9000/v2.html
 
 ## V3
 V2因为每次将节点挂在到父节点上，但是因为每次都是在主线程空闲时去执行的，所以上个版本的问题是在每次插入的过程中会遇到不完整UI的情况，这一版本我们对V2版本进行优化，将`performUnitOfWork`阶段的添加`dom操作`放到缓存中进行操作，先执行构建fiber节点的动作，当所有fiber节点构建完成后，统一执行`commitRoot`动作，这个地方注意，构建fiber节点在时间上是非线性的，但是`commitRoot`函数是同步执行的。
+http://localhost:9000/v3.html
 
 ## V4
 V3版本已经支持了Fiber的构建，同时也将dom的操作变成了同步，在V4版本我们将支持更新和删除。此时我们使用双缓存技术对替代节点进行暂存。此版本我们为fiber节点添加了三种`effectTag`，分别为新增(PLACEMENT)，修改(UPDATE)和删除(DELETION)。
+http://localhost:9000/v4.html
 
+## V5
+V4版本已经基本完成了我们的功能，此时我们还需要对函数式组件添加支持。这个地方需要注意一下，因为我们的函数式组件对应的fiber对象是没有dom的，所以在新增和删除的时候在找到响应的真实dom节点进行操作。
+http://localhost:9000/v5.html
+
+## V6
+添加useState支持
+http://localhost:9000/v6.html
